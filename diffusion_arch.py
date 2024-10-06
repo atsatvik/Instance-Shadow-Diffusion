@@ -24,6 +24,7 @@ from guided_diffusion.nn import (
     timestep_embedding,
 )
 
+
 class AttentionPool2d(nn.Module):
     """
     Adapted from CLIP: https://github.com/openai/CLIP/blob/main/clip/model.py
@@ -38,7 +39,7 @@ class AttentionPool2d(nn.Module):
     ):
         super().__init__()
         self.positional_embedding = nn.Parameter(
-            torch.randn(embed_dim, spacial_dim ** 2 + 1) / embed_dim ** 0.5
+            torch.randn(embed_dim, spacial_dim**2 + 1) / embed_dim**0.5
         )
         self.qkv_proj = conv_nd(1, embed_dim, 3 * embed_dim, 1)
         self.c_proj = conv_nd(1, embed_dim, output_dim or embed_dim, 1)
@@ -81,6 +82,7 @@ class TimestepEmbedSequential(nn.Sequential, TimestepBlock):
             else:
                 x = layer(x)
         return x
+
 
 class Upsample(nn.Module):
     """
@@ -309,7 +311,7 @@ class AttentionBlock(nn.Module):
         qkv = self.qkv(self.norm(x))
         h = self.attention(qkv)
         h = self.proj_out(h)
-        x =  (x + h).reshape(b, c, *spatial)
+        x = (x + h).reshape(b, c, *spatial)
 
         return x.to(dtype)
 
@@ -330,7 +332,7 @@ def count_flops_attn(model, _x, y):
     # We perform two matmuls with the same number of ops.
     # The first computes the weight matrix, the second computes
     # the combination of the value vectors.
-    matmul_ops = 2 * b * (num_spatial ** 2) * c
+    matmul_ops = 2 * b * (num_spatial**2) * c
     model.total_ops += torch.DoubleTensor([matmul_ops])
 
 
@@ -394,12 +396,15 @@ class QKVAttention(nn.Module):
             (k * scale).view(bs * self.n_heads, ch, length),
         )  # More stable with f16 than dividing afterwards
         weight = torch.softmax(weight.float(), dim=-1).type(weight.dtype)
-        a = torch.einsum("bts,bcs->bct", weight, v.reshape(bs * self.n_heads, ch, length))
+        a = torch.einsum(
+            "bts,bcs->bct", weight, v.reshape(bs * self.n_heads, ch, length)
+        )
         return a.reshape(bs, -1, length)
 
     @staticmethod
     def count_flops(model, _x, y):
         return count_flops_attn(model, _x, y)
+
 
 class UNetModel(nn.Module):
     """
@@ -667,7 +672,6 @@ class UNetModel(nn.Module):
             h = module(h, emb)
         h = h.type(x.dtype)
         return self.out(h)
-
 
 
 class SkippedUNetModel(nn.Module):
@@ -971,7 +975,6 @@ class ConditionalLatentUNetModel(UNetModel):
         return x
 
 
-
 class DensePosteriorConditionalUNet(nn.Module):
     def __init__(
         self,
@@ -1193,7 +1196,6 @@ class DensePosteriorConditionalUNet(nn.Module):
         :param y: an [N] Tensor of labels, if class-conditional.
         :return: an [N x C x ...] Tensor of outputs.
         """
-
 
         hs = []
         emb = self.dt_embed(timestep_embedding(dt, self.model_channels))
