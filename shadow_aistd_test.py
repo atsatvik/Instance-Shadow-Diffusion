@@ -26,6 +26,9 @@ from guided_diffusion.script_util import create_gaussian_diffusion
 
 from diffusion_arch import DensePosteriorConditionalUNet
 
+import argparse
+import cv2
+
 torch.backends.cudnn.benchmark = True
 torch.backends.cuda.matmul.allow_tf32 = True
 
@@ -43,7 +46,53 @@ def ema(source, target, decay):
         )
 
 
+def reshape_image(img):
+    img = np.squeeze(img)
+    if img.dtype != np.uint8:
+        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+        img = img.astype(np.uint8)
+
+    shape = img.shape
+    if len(shape) == 3:
+        height, width, channels = shape
+        if height == channels:
+            img = np.transpose(img, (2, 0, 1))
+        elif width == channels:
+            img = np.transpose(img, (1, 2, 0))
+    elif len(shape) == 2:
+        height, width = shape
+        if height == width:
+            img = np.expand_dims(img, axis=-1)
+    else:
+        raise ValueError(f"Cannot reshape image with shape {shape}")
+
+    return img
+
+
+def show_img(img, name="img", destroy=False):
+    if not isinstance(img, np.ndarray):
+        img = np.array(img)
+    img = reshape_image(img)
+    print("type(img)", type(img))
+    print("img.shape", img.shape)
+    print("imgname", name)
+    cv2.imshow(name, img)
+    cv2.waitKey(0)
+    if destroy:
+        cv2.destroyAllWindows()
+
+
 def main():
+
+    parser = argparse.ArgumentParser(description="Evaluation using Shadow AISTD")
+    parser.add_argument(
+        "--model_path",
+        default=None,
+        type=str,
+        help="Checkpoint location",
+    )
+    args = parser.parse_args()
+
     accelerator = Accelerator(
         gradient_accumulation_steps=ACCUM,
         mixed_precision="fp16",
@@ -64,7 +113,7 @@ def main():
             "std": [0.5, 0.5, 0.5],
             "use_rot": True,
             "use_hflip": True,
-            "interval": 50,
+            "interval": 1,
             "phase": "test",
         }
     )
@@ -127,7 +176,7 @@ def main():
         p2_k=1,
     )
 
-    accelerator.load_state("experiments/state_244999.bin")
+    accelerator.load_state(args.model_path)
 
     avg_psnr = []
     for i in tqdm(range(len(eval_dataset)), leave=True):
@@ -141,7 +190,15 @@ def main():
             intrinsic_feature = ema_feature_encoder(
                 lq, torch.tensor([0], device=device), latent=mask
             )
-
+            # show_img((gt.squeeze().detach().cpu().numpy()), name="gt")
+            # show_img(lq.detach().cpu().numpy(), name="lq")
+            # show_img(mask.detach().cpu().numpy(), name="mask")
+            # show_img(
+            #     intrinsic_feature.detach().cpu().numpy(),
+            #     name="intrinsic_feature",
+            #     destroy=True,
+            # )
+            # exit()
             start_time = time.time()
             latent = torch.cat((lq, intrinsic_feature), dim=1)
             pred_gt = eval_gaussian_diffusion.ddim_sample_loop(

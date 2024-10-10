@@ -1,3 +1,4 @@
+import os
 from os.path import join, basename
 from tqdm.auto import tqdm
 import copy
@@ -224,6 +225,7 @@ def main():
                 optim_shadow.step()
                 optim_shadow.zero_grad()
             else:
+                exit()
                 optim_refine_shadow.step()
                 optim_refine_shadow.zero_grad()
 
@@ -276,11 +278,13 @@ def main():
                             ),
                         )
 
-                if (total_iter + 1) % (ACCUM * 5000) == 0:
-                    if accelerator.is_main_process:
-                        accelerator.save_state(
-                            f"experiments/state_{total_iter:06d}.bin"
-                        )
+                # if (total_iter + 1) % (ACCUM * 5000) == 0:
+                if accelerator.is_main_process:
+                    weight_file = os.listdir("experiments")
+                    for file in weight_file:
+                        if file.split(".")[-1] == "bin":
+                            os.remove(file)
+                    accelerator.save_state(f"experiments/state_{total_iter:06d}.bin")
 
             accelerator.log({"training_loss": loss}, step=total_iter)
             pbar.set_description(f"Logs Iter: {total_iter:06d} Loss {loss.item():.5f}")
